@@ -20,9 +20,9 @@ for bookzip in ~/Library/Containers/com.readmoo.readmoodesktop/Readmoo/api/book/
     fi
     pushd "$book"
 
-    ek="$(xmllint META-INF/encryption.xml --xpath '//*[local-name()="CipherValue"]/text()' | openssl base64 -d | openssl rsautl -decrypt -inkey ../../rsa.pem | xxd -p)"
+    ek="$(xmllint META-INF/encryption.xml --xpath '//*[local-name()="CipherValue"]/text()' | base64 -d | openssl rsautl -decrypt -inkey ../../rsa.pem | xxd -p)"
 
-    for file in $(xmllint META-INF/encryption.xml --xpath '//*[local-name()="CipherReference"]/@URI' | sed -e 's/^.\+URI="\(.\+\)"$/\1/'); do
+    for file in $(xmllint META-INF/encryption.xml --xpath '//*[local-name()="CipherReference"]/@URI' | sed -E -e 's/ +URI="([^"]+)"/\1 /g'); do
         iv="$(head -c16 "$file" | xxd -p)"
         tail -c+17 "$file" | openssl enc -aes128 -d -K "$ek" -iv "$iv" -out "$file".plain
         mv "$file".plain "$file"
