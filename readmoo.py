@@ -38,7 +38,7 @@ def init_pubkey():
 
 def main():
     init_udid()
-    pubkey = init_pubkey()
+
     if not TOKEN:
         oauthURL = f'https://member.readmoo.com/oauth?client_id={CLIENT_ID}&redirect_uri=app://readmoo/login.html&udid={UDID}&response_type=token&scope=reading,highlight,like,comment,me,library&custom_layout=desktop'
         print(oauthURL)
@@ -50,7 +50,7 @@ def main():
     tags = s.get(f'https://api.readmoo.com/me/tags?access_token={TOKEN}').json()
     books = tags['items'][0]['tag']['books']
 
-    if pubkey:
+    if init_pubkey():
         s.post(f'https://api.readmoo.com/me/devices/{UDID}/publickey',
                 params={'access_token': TOKEN, 'client_id': CLIENT_ID},
                 data={'KeyName': user_id, 'KeyValue': PUBKEY})
@@ -60,7 +60,7 @@ def main():
         if book in ls or f'{book}.zip' in ls:
             continue
         url = f'https://api.readmoo.com/epub/{book}?client_id={CLIENT_ID}&access_token={TOKEN}'
-        print(url)
+        print(book)
         r = s.get(url, stream=True)
         with tqdm.tqdm(total=int(r.headers.get('content-length', 0)), unit='iB', unit_scale=True, unit_divisor=1024) as t, open(DIR + f'books/{book}.zip', 'wb') as f:
             for d in r.iter_content(1024):
