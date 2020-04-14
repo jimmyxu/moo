@@ -1,6 +1,7 @@
 #!/opt/local/bin/bash -
 
 shopt -s nullglob
+shopt -s extglob
 
 cd "$(dirname "$0")"
 if [ ! -f rsa.key ]; then
@@ -27,6 +28,7 @@ for bookzip in *.zip; do
     ek="$(xmllint META-INF/encryption.xml --xpath '//*[local-name()="CipherValue"]/text()' | base64 -d | openssl rsautl -decrypt -inkey ../../rsa.key | xxd -p)"
 
     for file in $(xmllint META-INF/encryption.xml --xpath '//*[local-name()="CipherReference"]/@URI' | sed -E -e 's/ +URI="([^"]+)"/\1 /g'); do
+        file=$(printf '%b' "${file//%/\\x}")
         echo ... "$file"
         iv="$(head -c16 "$file" | xxd -p)"
         tail -c+17 "$file" | openssl enc -aes128 -d -K "$ek" -iv "$iv" -out "$file".plain
@@ -34,6 +36,6 @@ for bookzip in *.zip; do
     done
 
     rm META-INF/encryption.xml
-    zip -9 -r ../"$book".epub *
+    zip -9 -X -r ../"$book".epub mimetype !(mimetype)
     popd
 done

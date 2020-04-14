@@ -55,7 +55,11 @@ def main():
                 params={'access_token': TOKEN, 'client_id': CLIENT_ID},
                 data={'KeyName': user_id, 'KeyValue': PUBKEY})
 
-    ls = os.listdir(DIR + 'books')
+    try:
+        ls = os.listdir(DIR + 'books')
+    except FileNotFoundError:
+        os.mkdir(DIR + 'books')
+        ls = []
     for book in books:
         if book in ls or f'{book}.zip' in ls:
             continue
