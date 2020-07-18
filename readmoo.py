@@ -48,7 +48,10 @@ def main():
     me = s.get(f'https://api.readmoo.com/me?access_token={TOKEN}').json()
     user_id = me['user']['id']
     tags = s.get(f'https://api.readmoo.com/me/tags?access_token={TOKEN}').json()
-    books = tags['items'][0]['tag']['books']
+    for tag in tags['items']:
+        if tag['tag']['id'] == 'all':
+            books = tag['tag']['books']
+            break
 
     if init_pubkey():
         s.post(f'https://api.readmoo.com/me/devices/{UDID}/publickey',
