@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import datetime
 import os
 import requests
 import subprocess
@@ -10,7 +11,7 @@ CLIENT_ID = ''
 TOKEN = ''
 DIR = os.path.expanduser('~/src/readmoo/')
 UDID = None
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.76 Safari/537.36'
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36'
 PUBKEY = None
 
 def init_udid():
@@ -40,23 +41,44 @@ def main():
     init_udid()
 
     if not TOKEN:
-        oauthURL = f'https://member.readmoo.com/oauth?client_id={CLIENT_ID}&redirect_uri=app://readmoo/login.html&udid={UDID}&response_type=token&scope=reading,highlight,like,comment,me,library&custom_layout=desktop'
+        oauthURL = f'https://member.readmoo.com/oauth?client_id={CLIENT_ID}&redirect_uri=http://localhost:3300&response_type=token&scope=me,reading,highlight,like,comment,library,book,subscription,forever,wishlist&state=&udid={UDID}'
         print(oauthURL)
         return
     s = requests.Session()
-    s.headers.update({'User-Agent': USER_AGENT, 'Authorization': f'Client {CLIENT_ID}'})
-    me = s.get(f'https://api.readmoo.com/me?access_token={TOKEN}').json()
-    user_id = me['user']['id']
-    tags = s.get(f'https://api.readmoo.com/me/tags?access_token={TOKEN}').json()
-    for tag in tags['items']:
-        if tag['tag']['id'] == 'all':
-            books = tag['tag']['books']
+    s.headers.update({
+        'User-Agent': USER_AGENT,
+        'Authorization': f'Bearer {TOKEN}',
+        'Content-Type': 'application/vnd.api+json',
+        })
+
+    books = []
+    offset = 0
+    while True:
+        r = s.get(f'https://api.readmoo.com/store/v3/me/library_items', params={'page[count]': 100, 'page[offset]': offset}).json()
+        if not r['data']:
             break
+        if 'included' in r:
+            books += [x['id'] for x in r['included'] if x['type'] == 'books']
+        offset += 100
 
     if init_pubkey():
-        s.post(f'https://api.readmoo.com/me/devices/{UDID}/publickey',
-                params={'access_token': TOKEN, 'client_id': CLIENT_ID},
-                data={'KeyName': user_id, 'KeyValue': PUBKEY})
+        s.patch(f'https://api.readmoo.com/store/v3/me/devices/{UDID}',
+                json={'data': {
+                    'type': 'devices',
+                    'id': UDID,
+                    'attributes': {
+                        'name': 'MacIntel',
+                        'info': 'MacIntel',
+                        'device_type': 'desktop',
+                        'user_agent': USER_AGENT,
+                        'registered_at': datetime.datetime.now().isoformat()[:-3] + 'Z',
+                        'key': {
+                            'algorithm': 'http://www.w3.org/2001/04/xmlenc#rsa-1_5',
+                            'name': UDID,
+                            'value': PUBKEY,
+                            },
+                        },
+                    }})
 
     try:
         ls = os.listdir(DIR + 'books')
@@ -66,7 +88,7 @@ def main():
     for book in books:
         if book in ls or f'{book}.zip' in ls:
             continue
-        url = f'https://api.readmoo.com/epub/{book}?client_id={CLIENT_ID}&access_token={TOKEN}'
+        url = f'https://api.readmoo.com/epub/{book}'
         print(book)
         r = s.get(url, stream=True)
         with tqdm.tqdm(total=int(r.headers.get('content-length', 0)), unit='iB', unit_scale=True, unit_divisor=1024) as t, open(DIR + f'books/{book}.zip', 'wb') as f:
