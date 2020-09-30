@@ -35,6 +35,11 @@ for bookzip in *.zip; do
         mv "$file".plain "$file"
     done
 
+    if [ -d moo_extra ]; then
+        sed -i -e 's/<item href="\.\.\/moo_extra\/[^>]\+\/>//g' item/standard.opf
+        rm -r moo_extra
+    fi
+
     rm META-INF/encryption.xml
     zip -9 -X -r ../"$book".epub mimetype !(mimetype)
     popd
