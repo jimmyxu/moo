@@ -2,6 +2,7 @@
 
 shopt -s nullglob
 shopt -s extglob
+shopt -s globstar
 
 cd "$(dirname "$0")"
 if [ ! -f rsa.key ]; then
@@ -54,8 +55,12 @@ for bookzip in *.zip; do
         rm "$file".plain
     done
 
+    sed -E -i -e 's/ class="moofs([0-9]+|NaN) moolh([0-9]+|NaN)( non-moofont)?"//g' **/*.xhtml
+    sed -E -i -e 's/ class="(([^"]+) )?moofs([0-9]+|NaN) moolh([0-9]+|NaN)( non-moofont)?"/ class="\2"/g' **/*.xhtml
+    sed -E -i -e 's/<meta name="moo_white_margins" content="[^"]+"\/>//g' **/*.xhtml
+    sed -E -i -e 's/<meta content="Bisheng [0-9.]+" name="moo[^"]+"\/>//' **/*.opf
     if [ -d moo_extra ]; then
-        sed -i -e 's/<item href="\.\.\/moo_extra\/[^>]\+\/>//g' item/standard.opf
+        sed -E -i -e 's/<item href="\.\.\/moo_extra\/[^>]+\/>//g' **/*.opf
         rm -r moo_extra
     fi
 
