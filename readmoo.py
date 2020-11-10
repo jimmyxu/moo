@@ -88,15 +88,19 @@ def main():
     for book in books:
         if book in ls or f'{book}.zip' in ls:
             continue
-        url = f'https://api.readmoo.com/epub/{book}'
         print(book)
+        lcpl = s.get(f'https://api.readmoo.com/lcpl/{book}').json()
+        ck = lcpl['encryption']['content_key']['encrypted_value']
+        with open(DIR + f'books/{book}.key', 'w') as f:
+            f.write(ck)
+        url = {x['rel']: x['href'] for x in lcpl['links']}['publication']
         r = s.get(url, stream=True)
         with tqdm.tqdm(total=int(r.headers.get('content-length', 0)), unit='iB', unit_scale=True, unit_divisor=1024) as t, open(DIR + f'books/{book}.zip', 'wb') as f:
             for d in r.iter_content(1024):
                 t.update(len(d))
                 f.write(d)
 
-    subprocess.run(['bash', DIR + 'epub.sh'], check=True)
+    subprocess.run([DIR + 'epub.sh'], check=True)
 
 
 if __name__ == '__main__':

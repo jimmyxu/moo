@@ -1,4 +1,4 @@
-#!/opt/local/bin/bash -
+#!/usr/local/bin/bash -
 
 shopt -s nullglob
 shopt -s extglob
@@ -25,14 +25,33 @@ for bookzip in *.zip; do
     fi
     pushd "$book"
 
-    ek="$(xmllint META-INF/encryption.xml --xpath '//*[local-name()="CipherValue"]/text()' | base64 -d | openssl rsautl -decrypt -inkey ../../rsa.key | xxd -p)"
+    ek="$(base64 -d -i ../"$book".key | openssl rsautl -decrypt -inkey ../../rsa.key | xxd -p -c 256)"
 
-    for file in $(xmllint META-INF/encryption.xml --xpath '//*[local-name()="CipherReference"]/@URI' | sed -E -e 's/ +URI="([^"]+)"/\1 /g'); do
-        file=$(printf '%b' "${file//%/\\x}")
+    i=0
+    while true; do
+        i=$((i + 1))
+        xml="$(xmllint --xpath '//*[local-name()="EncryptedData"]['"$i"']' META-INF/encryption.xml 2>/dev/null)"
+        [ "$xml" ] || break
+
+        file="$(xmllint --xpath '//*[local-name()="CipherReference"]/@URI' - <<<"$xml" | sed -E -e 's/^ \w+="|"$//g')"
+        file="$(printf '%b' "${file//%/\\x}")"
+        method="$(xmllint --xpath '//*[local-name()="Compression"]/@Method' - <<<"$xml" | sed -E -e 's/^ \w+="|"$//g')"
+        length="$(xmllint --xpath '//*[local-name()="Compression"]/@OriginalLength' - <<<"$xml" | sed -E -e 's/^ \w+="|"$//g')"
+
         echo ... "$file"
         iv="$(head -c16 "$file" | xxd -p)"
-        tail -c+17 "$file" | openssl enc -aes128 -d -K "$ek" -iv "$iv" -out "$file".plain
-        mv "$file".plain "$file"
+        tail -c+17 "$file" | openssl enc -aes256 -d -K "$ek" -iv "$iv" -nopad -out "$file".plain
+        if [ "$method" -eq 8 ]; then
+            cat <(printf "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x00") "$file".plain | gzip -dc >"$file" 2>/dev/null
+            size="$(stat -c %s "$file")"
+            if [ "$size" != "$length" ]; then
+                echo "$size" != "$length"
+                exit 1
+            fi
+        else
+            head -n"$length" "$file".plain >"$file"
+        fi
+        rm "$file".plain
     done
 
     if [ -d moo_extra ]; then
@@ -41,6 +60,7 @@ for bookzip in *.zip; do
     fi
 
     rm META-INF/encryption.xml
+    rm ../"$book".key
     zip -9 -X -r ../"$book".epub mimetype !(mimetype)
     popd
 done
