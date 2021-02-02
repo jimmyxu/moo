@@ -58,7 +58,7 @@ def main():
         if not r['data']:
             break
         if 'included' in r:
-            books += [x['id'] for x in r['included'] if x['type'] == 'books']
+            books += [(x['id'], x['attributes']['epub']['latest_version'], x['attributes']['title']) for x in r['included'] if x['type'] == 'books']
         offset += 100
 
     if init_pubkey():
@@ -86,16 +86,18 @@ def main():
         os.mkdir(DIR + 'books')
         ls = []
     for book in books:
-        if book in ls or f'{book}.zip' in ls:
+        bookid, version, title = book
+        fn = f'{bookid}-{version}' if version != '1.000' else bookid
+        if fn in ls or f'{fn}.zip' in ls:
             continue
-        print(book)
-        lcpl = s.get(f'https://api.readmoo.com/lcpl/{book}').json()
+        print(bookid, version, title)
+        lcpl = s.get(f'https://api.readmoo.com/lcpl/{bookid}').json()
         ck = lcpl['encryption']['content_key']['encrypted_value']
-        with open(DIR + f'books/{book}.key', 'w') as f:
+        with open(DIR + f'books/{fn}.key', 'w') as f:
             f.write(ck)
         url = {x['rel']: x['href'] for x in lcpl['links']}['publication']
         r = s.get(url, stream=True)
-        with tqdm.tqdm(total=int(r.headers.get('content-length', 0)), unit='iB', unit_scale=True, unit_divisor=1024) as t, open(DIR + f'books/{book}.zip', 'wb') as f:
+        with tqdm.tqdm(total=int(r.headers.get('content-length', 0)), unit='iB', unit_scale=True, unit_divisor=1024) as t, open(DIR + f'books/{fn}.zip', 'wb') as f:
             for d in r.iter_content(1024):
                 t.update(len(d))
                 f.write(d)

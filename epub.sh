@@ -67,7 +67,7 @@ for bookzip in *.zip; do
     rm META-INF/encryption.xml
     rm ../"$book".key
 
-    title="$(grep -Po '<dc:title( id="title")?>\K.+?(?=</dc:title>)' **/*.opf)"
-    zip -9 -X -r ../"$book"."$title".epub mimetype !(mimetype)
+    title="$(grep -Po '<dc:title( id="[^"]+")?>\K.+?(?=</dc:title>)' **/*.opf)"
+    zip -9 -X -r ../"$book"\ "$title".epub mimetype !(mimetype)
     popd
 done
