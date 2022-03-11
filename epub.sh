@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash -
+#!/opt/homebrew/bin/bash -
 
 shopt -s nullglob
 shopt -s extglob
@@ -26,7 +26,7 @@ for bookzip in *.zip; do
     fi
     pushd "$book"
 
-    ek="$(base64 -d -i ../"$book".key | openssl rsautl -decrypt -inkey ../../rsa.key | xxd -p -c 256)"
+    ek="$(base64 -d -i ../"$book".key | openssl rsautl -decrypt -inkey "$(dirname "$0")"/rsa.key | xxd -p -c 256)"
     opf="$(xmllint --xpath 'string(//*[name()="rootfile"]/@full-path)' META-INF/container.xml)"
 
     bookid="$(xmllint --xpath 'string(//*[name()="dc:identifier"][@id="'"$(xmllint --xpath 'string(/*[name()="package"]/@unique-identifier)' "$opf")"'"])' "$opf")"
@@ -44,7 +44,7 @@ for bookzip in *.zip; do
 
         algorithm="$(xmllint --xpath 'string(//*[name()="EncryptionMethod"]/@Algorithm)' - <<<"$xml")"
         if [ "$algorithm" = 'http://www.idpf.org/2008/embedding' ]; then
-            ../../embedding.py "$file" "$bookid" >"$file".plain
+            "$(dirname "$0")"/embedding.py "$file" "$bookid" >"$file".plain
             mv "$file".plain "$file"
 
         else
