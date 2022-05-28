@@ -88,7 +88,7 @@ def main():
     for book in books:
         bookid, version, title = book
         fn = f'{bookid}-{version}' if version != '1.000' else bookid
-        if fn in ls or f'{fn}.zip' in ls:
+        if any(x for x in ls if x.startswith(fn) and x.endswith(('.epub', '.zip'))):
             continue
         print(bookid, version, title)
         lcpl = s.get(f'https://api.readmoo.com/lcpl/{bookid}').json()

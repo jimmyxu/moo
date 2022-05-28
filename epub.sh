@@ -81,4 +81,5 @@ for bookzip in *.zip; do
 
     zip -9 -X -r ../"$book"\ "$title".epub mimetype !(mimetype)
     popd
+    rm -r "$book"
 done
