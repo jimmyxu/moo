@@ -1,55 +1,94 @@
 #!/usr/bin/env python3
 
+import base64
 import datetime
+import json
 import os
 import requests
 import subprocess
-import uuid
 import tqdm
+import uuid
 
 CLIENT_ID = ''
-TOKEN = ''
+AUTHORIZATION_CODE = ''
 DIR = os.path.expanduser('~/src/readmoo/')
-UDID = None
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36'
-PUBKEY = None
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
 def init_udid():
-    global UDID
     try:
         with open(DIR + 'udid.txt') as f:
-            UDID = f.read().strip()
+            udid = f.read().strip()
     except IOError:
         pass
-    if not UDID:
-        UDID = str(uuid.uuid4())
+    if not udid:
+        udid = str(uuid.uuid4())
         with open(DIR + 'udid.txt', 'w') as f:
-            f.write(UDID)
+            f.write(udid)
+    return udid
 
 def init_pubkey():
-    global PUBKEY
-    ret = False
     if not os.path.exists(DIR + 'rsa.pub'):
         subprocess.run(['openssl', 'genrsa', '-out', DIR + 'rsa.key', '1024'], check=True)
         subprocess.run(['openssl', 'rsa', '-in', DIR + 'rsa.key', '-pubout', '-out', DIR + 'rsa.pub'], check=True)
-        ret = True
     with open(DIR + 'rsa.pub') as f:
-        PUBKEY = f.read()
-    return ret
+        return f.read()
 
 def main():
-    init_udid()
+    udid = init_udid()
+    pubkey = init_pubkey()
 
-    if not TOKEN:
-        oauthURL = f'https://member.readmoo.com/oauth?client_id={CLIENT_ID}&redirect_uri=http://localhost:3300&response_type=token&scope=me,reading,highlight,like,comment,library,book,subscription,forever,wishlist&state=&udid={UDID}'
-        print(oauthURL)
-        return
     s = requests.Session()
     s.headers.update({
         'User-Agent': USER_AGENT,
-        'Authorization': f'Bearer {TOKEN}',
+        })
+
+    token = input('access_token=')
+
+    if not token:
+        redirect_uri = 'readmoodesktoplogin://oauth2-login'
+        scope = requests.utils.quote('aws.cognito.signin.user.admin email openid profile Galao/email Galao/profile Galao/user_id')
+        state = json.dumps({'device_id': udid, 'device_name': 'Mac'});
+        state = base64.urlsafe_b64encode(state.encode()).decode().rstrip('=')
+        oauthURL = f'https://member.readmoo.com/oauth2/signin?client_id={CLIENT_ID}&redirect_uri={redirect_uri}&response_type=code&scope={scope}&state={state}'
+
+        print(oauthURL)
+        code = input('code=')
+        r = s.post('https://member.readmoo.com/oauth2/token',
+                data={
+                    'client_id': CLIENT_ID,
+                    'redirect_uri': redirect_uri,
+                    'code': code,
+                    'grant_type': 'authorization_code'},
+                headers={
+                    'Authorization': AUTHORIZATION_CODE}).json()
+        token = r['access_token']
+        if not token:
+            print(r)
+            return
+        print(token)
+
+    s.headers.update({
+        'Authorization': f'Bearer {token}',
         'Content-Type': 'application/vnd.api+json',
         })
+
+    s.patch(f'https://api.readmoo.com/store/v3/me/devices/{udid}',
+            json={'data': {
+                'type': 'devices',
+                'id': udid,
+                'attributes': {
+                    'name': 'MacIntel',
+                    'info': 'MacIntel',
+                    'device_type': 'desktop',
+                    'user_agent': USER_AGENT,
+                    'registered_at': datetime.datetime.now(datetime.UTC).isoformat()[:-9] + 'Z',
+                    'key': {
+                        'algorithm': 'http://www.w3.org/2001/04/xmlenc#rsa-1_5',
+                        'name': udid,
+                        'value': pubkey,
+                        },
+                    },
+                }})
 
     books = []
     offset = 0
@@ -60,25 +99,6 @@ def main():
         if 'included' in r:
             books += [(x['id'], x['attributes']['epub']['latest_version'], x['attributes']['title']) for x in r['included'] if x['type'] == 'books']
         offset += 100
-
-    if init_pubkey():
-        s.patch(f'https://api.readmoo.com/store/v3/me/devices/{UDID}',
-                json={'data': {
-                    'type': 'devices',
-                    'id': UDID,
-                    'attributes': {
-                        'name': 'MacIntel',
-                        'info': 'MacIntel',
-                        'device_type': 'desktop',
-                        'user_agent': USER_AGENT,
-                        'registered_at': datetime.datetime.now().isoformat()[:-3] + 'Z',
-                        'key': {
-                            'algorithm': 'http://www.w3.org/2001/04/xmlenc#rsa-1_5',
-                            'name': UDID,
-                            'value': PUBKEY,
-                            },
-                        },
-                    }})
 
     try:
         ls = os.listdir(DIR + 'books')
@@ -91,7 +111,12 @@ def main():
         if any(x for x in ls if x.startswith(fn) and x.endswith(('.epub', '.zip'))):
             continue
         print(bookid, version, title)
-        lcpl = s.get(f'https://api.readmoo.com/lcpl/{bookid}').json()
+        lcpl = s.get(f'https://api.readmoo.com/lcpl/{bookid}')
+        try:
+            lcpl = lcpl.json()
+        except ValueError:
+            print(lcpl, lcpl.text)
+            continue
         ck = lcpl['encryption']['content_key']['encrypted_value']
         with open(DIR + f'books/{fn}.key', 'w') as f:
             f.write(ck)

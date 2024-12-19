@@ -26,7 +26,9 @@ for bookzip in *.zip; do
     fi
     pushd "$book"
 
-    ek="$(base64 -d -i ../"$book".key | openssl rsautl -decrypt -inkey "$(dirname "$0")"/rsa.key | xxd -p -c 256)"
+    [ -d moo_extra/ ] && rm -r moo_extra/
+
+    ek="$(base64 -d -i ../"$book".key | openssl pkeyutl -decrypt -inkey "$(dirname "$0")"/rsa.key | xxd -p -c 256)"
     opf="$(xmllint --xpath 'string(//*[name()="rootfile"]/@full-path)' META-INF/container.xml)"
 
     bookid="$(xmllint --xpath 'string(//*[name()="dc:identifier"][@id="'"$(xmllint --xpath 'string(/*[name()="package"]/@unique-identifier)' "$opf")"'"])' "$opf")"
@@ -40,6 +42,7 @@ for bookzip in *.zip; do
 
         file="$(xmllint --xpath 'string(//*[name()="CipherReference"]/@URI)' - <<<"$xml")"
         file="$(printf '%b' "${file//%/\\x}")"
+        [ ! -f "$file" ] && continue
         echo ... "$file"
 
         algorithm="$(xmllint --xpath 'string(//*[name()="EncryptionMethod"]/@Algorithm)' - <<<"$xml")"
@@ -79,7 +82,7 @@ for bookzip in *.zip; do
     rm META-INF/encryption.xml
     rm ../"$book".key
 
-    zip -9 -X -r ../"$book"\ "$title".epub mimetype !(mimetype)
+    zip -9 -X -r ../"$book"\ "${title//\//_}".epub mimetype !(mimetype)
     popd
     rm -r "$book"
 done
