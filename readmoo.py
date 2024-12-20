@@ -11,6 +11,7 @@ import uuid
 
 CLIENT_ID = ''
 AUTHORIZATION_CODE = ''
+CREDS = 'token.json'
 DIR = os.path.expanduser('~/src/readmoo/')
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
@@ -42,30 +43,39 @@ def main():
         'User-Agent': USER_AGENT,
         })
 
-    token = input('access_token=')
+    try:
+        token = json.load(open(DIR + CREDS))
+        r = s.post('https://member.readmoo.com/oauth2/token',
+                   data={
+                       'client_id': CLIENT_ID,
+                       'grant_type': 'refresh_token',
+                       'refresh_token': token['refresh_token']},
+                   headers={
+                       'Authorization': AUTHORIZATION_CODE}).json()
 
-    if not token:
+    except:
         redirect_uri = 'readmoodesktoplogin://oauth2-login'
         scope = requests.utils.quote('aws.cognito.signin.user.admin email openid profile Galao/email Galao/profile Galao/user_id')
         state = json.dumps({'device_id': udid, 'device_name': 'Mac'});
         state = base64.urlsafe_b64encode(state.encode()).decode().rstrip('=')
         oauthURL = f'https://member.readmoo.com/oauth2/signin?client_id={CLIENT_ID}&redirect_uri={redirect_uri}&response_type=code&scope={scope}&state={state}'
-
         print(oauthURL)
+
         code = input('code=')
         r = s.post('https://member.readmoo.com/oauth2/token',
-                data={
-                    'client_id': CLIENT_ID,
-                    'redirect_uri': redirect_uri,
-                    'code': code,
-                    'grant_type': 'authorization_code'},
-                headers={
-                    'Authorization': AUTHORIZATION_CODE}).json()
-        token = r['access_token']
-        if not token:
-            print(r)
-            return
-        print(token)
+                   data={
+                       'client_id': CLIENT_ID,
+                       'redirect_uri': redirect_uri,
+                       'code': code,
+                       'grant_type': 'authorization_code'},
+                   headers={
+                       'Authorization': AUTHORIZATION_CODE}).json()
+
+    token = r['access_token']
+    if not token:
+        print(r)
+        return
+    json.dump(r, open(DIR + CREDS, 'w'))
 
     s.headers.update({
         'Authorization': f'Bearer {token}',
